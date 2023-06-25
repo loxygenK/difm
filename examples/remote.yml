@@ -1,0 +1,4 @@
+type: server
+
+ssh-config:
+  hostname: DifmRemote

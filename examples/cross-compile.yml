@@ -1,0 +1,27 @@
+type: task
+
+as: xc
+
+host:
+  name: DifmRemote
+  base_dir: /home/flisan/synced/repo
+
+code:
+  use: ssh
+  location: ./
+  dest: loxygenK/difm
+  ignore: |
+    target/
+    .git/
+    .vscode/
+
+run:
+  - name: Install rust toolchain
+    run: cargo --help
+
+  - name: Cross compile
+    run: cargo +nightly +aarch64-apple-darwin build
+
+artifact:
+  - remote_path: target/debug/difm
+    local_path: received/exe/difm
