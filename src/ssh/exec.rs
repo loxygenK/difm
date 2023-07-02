@@ -5,16 +5,14 @@ use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
 pub struct ExecChannel {
-    channel: Arc<RwLock<Channel>>,
     end_notify: Arc<Notify>,
-    id: Uuid,
-    line: String,
-    stdout: Arc<RwLock<String>>,
-    exit_code: Arc<RwLock<Option<u8>>>,
+    complete_info: Arc<RwLock<Option<ExecChannelCompleteInfo>>>
 }
 
+#[derive(Debug, Clone)]
 pub struct ExecChannelCompleteInfo {
     pub stdout: String,
+    pub stderr: String,
     pub exit_code: u8,
 }
 
@@ -28,41 +26,31 @@ impl ExecChannel {
             .exec(&format!("sh -c '{line}'; echo \"{tag}\""))
             .unwrap();
 
-        let channel = Arc::new(RwLock::new(channel));
-        let stdout = Arc::new(RwLock::new(String::new()));
-        let exit_code = Arc::new(RwLock::new(None));
+        let complete_info = Arc::new(RwLock::new(None));
         let end_notify = Arc::new(Notify::new());
 
-        let channel_for_thread = channel.clone();
-        let exit_code_for_thread = exit_code.clone();
-        let stdout_for_thread = stdout.clone();
+        let complete_info_for_thread = complete_info.clone();
         let notify_for_thread = end_notify.clone();
 
         let new_exec = Self {
-            channel,
             end_notify,
-            id,
-            exit_code,
-            line: line.to_string(),
-            stdout,
+            complete_info,
         };
 
         tokio::spawn(async move {
             loop {
-                let mut new_input = String::new();
-                channel_for_thread
-                    .write()
-                    .await
-                    .read_to_string(&mut new_input)
-                    .unwrap();
+                let mut stdout = String::new();
+                let mut stderr = String::new();
 
-                {
-                    let mut stdout = stdout_for_thread.write().await;
-                    stdout.push_str(&new_input);
-                }
+                channel.stream(0).read_to_string(&mut stdout).unwrap();
+                channel.stderr().read_to_string(&mut stderr).unwrap();
 
-                if let Some(exit_code) = Self::extract_tag(&id, &new_input) {
-                    *(exit_code_for_thread.write().await) = Some(exit_code);
+                if let Some(exit_code) = Self::extract_tag(&id, &stdout) {
+                    *(complete_info_for_thread.write().await) = Some(ExecChannelCompleteInfo {
+                        stdout,
+                        stderr,
+                        exit_code
+                    });
                     break;
                 }
 
@@ -75,18 +63,11 @@ impl ExecChannel {
         new_exec
     }
 
-    pub async fn stdout(&self) -> String {
-        self.stdout.read().await.clone()
-    }
-
     pub async fn wait_done(&self) -> ExecChannelCompleteInfo {
         let notify = self.end_notify.clone();
         notify.notified().await;
 
-        let exit_code = self.exit_code.read().await.unwrap();
-        let stdout = self.stdout.read().await.clone();
-
-        ExecChannelCompleteInfo { exit_code, stdout }
+        self.complete_info.read().await.clone().unwrap()
     }
 
     fn tag(id: &Uuid) -> String {

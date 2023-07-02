@@ -23,13 +23,6 @@ use self::exec::ExecChannel;
 mod connect;
 mod exec;
 
-#[derive(Debug)]
-pub struct CommandExecuteResult {
-    pub exit_code: i32,
-    pub stdout: String,
-    pub stderr: String,
-}
-
 pub struct SSHSession(Arc<Mutex<Session>>);
 impl SSHSession {
     pub fn open(hostname: &str, params: &HostParams) -> Self {

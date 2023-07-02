@@ -20,3 +20,10 @@ pub fn read_from_stdin(hidden: bool, prompt: &str) -> String {
         read
     }
 }
+
+pub fn indent_str(string: &str, level: usize) -> String {
+    string.lines()
+        .map(|line| format!("{:indent$} |  {}", "", line, indent=level))
+        .collect::<Vec<_>>()
+        .join("\n")
+}

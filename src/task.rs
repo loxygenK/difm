@@ -1,6 +1,6 @@
 use std::{num::NonZeroU8, path::Path};
 
-use crate::{config::TaskRun, progress::ProgressView, ssh::SSHSession};
+use crate::{config::TaskRun, progress::ProgressView, ssh::SSHSession, util::indent_str};
 
 pub struct TaskRunner<'s> {
     pub session: &'s SSHSession,
@@ -29,7 +29,9 @@ impl<'s> TaskRunner<'s> {
                 };
 
                 println!("\x1b[1m----- Standard output -----\x1b[m");
-                println!("\x1b[38;5;14m{}\x1b[m", exit_info.stdout);
+                println!("\x1b[38;5;14m{}\x1b[m", indent_str(&exit_info.stdout, 1));
+                println!("\x1b[1m----- Standard Error  -----\x1b[m");
+                println!("\x1b[38;5;11m{}\x1b[m", indent_str(&exit_info.stderr, 1));
                 println!("\x1b[1m----- End of Standard output -----\x1b[m");
 
                 match exit_info.exit_code {
