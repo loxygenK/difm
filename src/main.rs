@@ -1,5 +1,6 @@
 mod config;
 mod fs;
+pub mod progress;
 mod remote;
 mod services;
 mod ssh;

@@ -14,8 +14,8 @@ use tokio::sync::Mutex;
 
 use crate::{
     check,
+    progress::ProgressView,
     ssh::connect::{authenticate, configure_session, try_connection},
-    util::{create_spinner, with_spinner},
 };
 
 use self::exec::ExecChannel;
@@ -46,25 +46,25 @@ impl SSHSession {
             format!("{}:{}", host, port)
         };
 
-        let stream = with_spinner("Connecting to the host...", |mut spinner| {
+        let stream = ProgressView::with("Connecting to the host..", |mut progress| {
             let stream = try_connection(&host).expect("Could not connect to the host");
-            spinner.stop_with_message(format!(
-                "👋 Connected to {}",
+            progress.success(Some(&format!(
+                "Connected to {}",
                 stream
                     .peer_addr()
                     .map(|addr| addr.to_string())
                     .unwrap_or("[host]".to_string())
-            ));
+            )));
 
             stream
         });
 
-        let mut session = with_spinner("Configuring the session...", |mut spinner| {
+        let mut session = ProgressView::with("Configuring the session...", |mut progress| {
             let mut session = Session::new().expect("Could not create session");
             configure_session(&mut session, params);
             session.set_tcp_stream(stream);
             session.handshake().unwrap();
-            spinner.stop_with_message("🤝 Handshaked!");
+            progress.success(None);
 
             session
         });
@@ -90,15 +90,11 @@ impl SSHSession {
     }
 
     async fn send_file(&self, local_source: &Path, remote_dest: &Path) -> Result<()> {
-        // println!("\nReading {}", local_source.display());
         let mut content = Vec::new();
-        // println!("\nRead {}", local_source.display());
         File::open(local_source)
             .unwrap()
             .read_to_end(&mut content)
             .unwrap();
-
-        // println!("\nSend {}", local_source.display());
 
         async {
             let session = self.0.lock().await;
@@ -114,15 +110,13 @@ impl SSHSession {
         }
         .await;
 
-        // println!("\nSent {}", local_source.display());
-
         Ok(())
     }
 
     pub async fn send_directory(&self, paths: &[DirEntry], remote_dest: &Path) -> Result<()> {
-        let mut spinner = create_spinner("Sending contents");
-        spinner.start();
-        let spinner = Arc::new(Mutex::new(spinner));
+        let mut progress = ProgressView::new("Sending contents");
+        progress.start();
+        let progress = Arc::new(Mutex::new(progress));
         let total_items = paths.len();
 
         for (i, dir) in paths.iter().enumerate() {
@@ -140,22 +134,19 @@ impl SSHSession {
             }
 
             self.send_file(dir.path(), &file_remote_dest).await.unwrap();
-            tokio::time::timeout(Duration::from_millis(10), spinner.lock())
+            tokio::time::timeout(Duration::from_millis(10), progress.lock())
                 .await
-                .map(|mut spinner| {
-                    spinner.set_message(format!(
-                        "\x1b[0J{}/{}: {}",
-                        i + 1,
-                        total_items,
-                        dir.path().display()
-                    ))
+                .map(|mut progress| {
+                    progress.report_intermediate(
+                        (i + 1, total_items),
+                        Some(&dir.path().display().to_string()),
+                    )
                 })
                 .ok();
         }
 
         tokio::time::sleep(Duration::from_millis(20)).await;
-        spinner.lock().await.stop_with_message("✓ Sent all files");
-        println!();
+        progress.lock().await.success(Some("Sent all files"));
 
         Ok(())
     }

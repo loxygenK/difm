@@ -1,6 +1,7 @@
 {
   "cSpell.words": [
-    "difm"
+    "difm",
+    "ESEQ"
   ],
   "rust-analyzer.linkedProjects": [
     "./Cargo.toml",
