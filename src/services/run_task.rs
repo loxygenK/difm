@@ -1,39 +1,24 @@
-use std::{io::BufReader, fs::File, path::Path};
-
-use ignore::gitignore::GitignoreBuilder;
-use ssh2_config::ParseRule;
+use std::path::{Path, PathBuf};
 
 use crate::config::{ConfigContext, Configuration};
 use crate::fs::traverse_dir;
-use crate::ssh::SSHSession;
+use crate::remote::RemoteHost;
+use crate::task::TaskRunner;
 
 pub async fn run_task(config_ctx: &ConfigContext) {
     let Configuration::TaskDefinition(task) = &config_ctx.config; //  else { unreachable!(); };
 
-    let file = File::open("/Users/flisan/.ssh/config").unwrap();
-    let mut reader = BufReader::new(file);
+    let session = RemoteHost::new(&task.host.name).open();
 
-    let config = ssh2_config::SshConfig::default()
-        .parse(&mut reader, ParseRule::STRICT)
-        .unwrap();
+    let dirs = traverse_dir(
+        Path::new("./"),
+        &task.code.ignore,
+        &config_ctx.config_file
+    );
 
-    let config = config.query(&task.host.name);
-    let session = SSHSession::open(&task.host.name, &config);
-    let result = session.run_command("ls -al").await;
-    println!("{}", result.stdout);
+    let location = PathBuf::from(&task.host.base_dir.join(&task.code.location));
 
-    let mut gitignore = GitignoreBuilder::new(&task.code.location);
+    session.send_directory(dirs.as_slice(), &location).await.unwrap();
 
-    task.code.ignore
-        .lines()
-        .for_each(|line| { gitignore.add_line(Some(config_ctx.config_file.clone()), line).unwrap(); });
-
-    session.send_directory(
-        traverse_dir(
-            Path::new("./"),
-            GitignoreBuilder::new(Path::new("./"))
-                .build().unwrap()
-        ).as_slice(),
-        Path::new(&task.host.base_dir.join(&task.code.location))
-    ).await.unwrap();
+    TaskRunner::new(&session).perform_task_set(&location, &task.run).await;
 }

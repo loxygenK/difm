@@ -18,14 +18,14 @@ pub struct ConfigContext {
   pub config: Configuration,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Configuration {
   #[serde(alias = "task")]
   TaskDefinition(TaskDefinition)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskDefinition {
   #[serde(alias = "as")]
   pub alias: Option<String>,
@@ -35,13 +35,13 @@ pub struct TaskDefinition {
   pub artifact: Vec<TaskArtifact>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskHost {
   pub name: String,
   pub base_dir: PathBuf,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskCodeDefinition {
   pub location: PathBuf,
   pub dest: PathBuf,
@@ -51,13 +51,13 @@ pub struct TaskCodeDefinition {
   pub protocol: TaskCodeProtocol,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskCodeProtocol {
   Ssh
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRun {
   pub name: String,
   pub run: String,
@@ -66,14 +66,14 @@ pub struct TaskRun {
   pub platform: TaskRunPlatform,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskRunPlatform {
   #[default]
   Remote
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskArtifact {
   pub remote_path: PathBuf,
   pub local_path: PathBuf

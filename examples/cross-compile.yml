@@ -16,11 +16,20 @@ code:
     .vscode/
 
 run:
-  - name: Install rust toolchain
-    run: cargo --help
+  # - name: Current Directory
+  #   run: pwd
+
+  # - name: Awaiter
+  #   run: echo "Awaiting..." && sleep 1 && echo 'Done!'
+
+  # - name: Check contents
+  #   run: ls -al
+
+  - name: Install Rust
+    run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s - -y
 
   - name: Cross compile
-    run: cargo +nightly +aarch64-apple-darwin build
+    run: cargo build
 
 artifact:
   - remote_path: target/debug/difm

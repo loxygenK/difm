@@ -31,12 +31,18 @@ pub fn create_spinner(prompt: impl ToString) -> Spinner {
   spinner
 }
 
-pub fn with_spinner<T>(prompt: impl ToString, op: impl FnOnce(&mut Spinner) -> T) -> T {
+pub fn with_spinner<T>(prompt: impl ToString, op: impl FnOnce(Spinner) -> T) -> T {
   let mut spinner = create_spinner(prompt);
-  spinner.start();
 
-  let returning = op(&mut spinner);
-  println!("");
+  let returning = op(spinner);
+  println!();
 
   returning
+}
+
+pub fn str_buf<T>(func: impl FnOnce(&mut String) -> T) -> (String, T) {
+  let mut string = String::new();
+  let returning = func(&mut string);
+
+  (string, returning)
 }

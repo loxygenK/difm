@@ -5,9 +5,10 @@ use futures::StreamExt;
 use glob::glob;
 use ignore::DirEntry;
 use spinners_rs::Spinner;
-use ssh2::Session;
+use ssh2::{Session, Channel};
 use ssh2_config::HostParams;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify, RwLock};
+use uuid::Uuid;
 
 use crate::{check, util::{with_spinner, create_spinner}, ssh::connect::{try_connection, configure_session, authenticate}};
 
@@ -29,7 +30,7 @@ pub struct SSHSession(Arc<Mutex<Session>>);
 impl SSHSession {
     pub fn open(hostname: &str, params: &HostParams) -> Self {
         let host = params.host_name.as_deref().unwrap_or(hostname);
-        let host = if host.contains(":") {
+        let host = if host.contains(':') {
             check!(params.port.is_none(), "Port {} is ignored, because hostname seems to contain port (it has ':')", params.port.unwrap());
             host.to_string()
         } else {
@@ -39,7 +40,7 @@ impl SSHSession {
         
         let stream = with_spinner(
             "Connecting to the host...",
-            |spinner| {
+            |mut spinner| {
                 let stream = try_connection(&host).expect("Could not connect to the host");
                 spinner.stop_with_message(
                     format!(
@@ -53,19 +54,21 @@ impl SSHSession {
                 stream
             }
         );
+        println!();
         
         let mut session = with_spinner(
             "Configuring the session...", 
-            |spinner| {
+            |mut spinner| {
                 let mut session = Session::new().expect("Could not create session");
                 configure_session(&mut session, &params);
                 session.set_tcp_stream(stream);
                 session.handshake().unwrap();
-                spinner.stop_with_message("🤝 Handshaked!                 ");
+                spinner.stop_with_message("🤝 Handshaked!");
 
                 session
             }
         );
+        println!();
         
         authenticate(&mut session, params);
         
@@ -84,22 +87,8 @@ impl SSHSession {
         Self(self.0.clone())
     }
 
-    pub async fn run_command(&self, command_line: &str) -> CommandExecuteResult {
-        let mut chan = self.0.lock().await.channel_session().unwrap();
-
-        chan.exec(command_line).unwrap();
-
-        let mut stdout = String::new();
-        chan.read_to_string(&mut stdout).unwrap();
-
-        let mut stderr = String::new();
-        chan.stderr().read_to_string(&mut stderr).unwrap();
-
-        CommandExecuteResult {
-            exit_code: chan.exit_status().unwrap(),
-            stdout,
-            stderr
-        }
+    pub async fn create_exec_channel(&self, command_line: &str) -> ExecChannel {
+        ExecChannel::new(self.0.clone().lock().await.channel_session().unwrap(), command_line)
     }
 
     async fn send_file(&self, local_source: &Path, remote_dest: &Path) -> Result<()> {
@@ -159,12 +148,15 @@ impl SSHSession {
                 let file_remote_dest = remote_dest.join(ctx.dir.path());
 
                 if ctx.dir.file_type().unwrap().is_dir() {
-                    self.run_command(&format!("mkdir -p {}", file_remote_dest.to_str().unwrap())).await;
+                    self.create_exec_channel(&format!("mkdir -p {}", file_remote_dest.to_str().unwrap()))
+                        .await
+                        .wait_done()
+                        .await;
                     return;
                 }
 
                 tokio::spawn(async move {
-                    ctx.shared_session.send_file(&ctx.dir.path(), &file_remote_dest).await.unwrap();
+                    ctx.shared_session.send_file(ctx.dir.path(), &file_remote_dest).await.unwrap();
                     tokio::time::timeout(Duration::from_millis(10), ctx.spinner.lock())
                         .await
                         .map(|mut spinner| spinner.set_message(format!("\x1b[0J{}/{}: {}", ctx.index + 1, total_items, ctx.dir_display)))
@@ -176,5 +168,79 @@ impl SSHSession {
             .collect::<Vec<_>>()
             .await;
         Ok(())
+    }
+}
+
+pub struct ExecChannel {
+    channel: Arc<Channel>,
+    end_notify: Arc<Notify>,
+    id: Uuid,
+    line: String,
+}
+impl ExecChannel {
+    pub fn new(mut channel: Channel, line: &str) -> Self {
+        let id = Uuid::new_v4();
+
+        let channel = Arc::new(channel);
+        let end_notify = Arc::new(Notify::new());
+
+        Self {
+            channel: channel.clone(),
+            end_notify: channel.clone(),
+            id,
+            line: line.to_string(),
+        }
+
+        channel.exec(line).unwrap();
+
+        let channel_for_thread = channel.clone();
+        let notify_for_thread = end_notify.clone();
+
+        tokio::spawn(async move {
+            while !channel_for_thread.() {
+                println!("EOF => {}", channel_for_thread.wait_close());
+                tokio::time::sleep(Duration::from_micros(300)).await
+            }
+
+            notify_for_thread.notify_one();
+        });
+
+    }
+
+    pub fn stdout(&self) -> impl Read {
+        self.channel.stream(0)
+    }
+
+    pub fn stderr(&self) -> impl Read {
+        self.channel.stderr()
+    }
+
+    pub fn done(&self) -> bool {
+        self.channel.eof()
+    }
+
+    pub async fn wait_done(&self) -> i32 {
+        let notify = self.end_notify.clone();
+        notify.notified().await;
+
+        self.channel.exit_status().unwrap()
+    }
+
+    pub fn stdout_all(&self) -> String {
+        let mut stdout = String::new();
+        self.stdout().read_to_string(&mut stdout).unwrap();
+
+        stdout
+    }
+
+    pub fn stderr_all(&self) -> String {
+        let mut stderr = String::new();
+        self.stderr().read_to_string(&mut stderr).unwrap();
+
+        stderr
+    }
+
+    fn tag(&self) -> String {
+        format!("[[--- END OF TASK <{}> ---]]", self.id.hyphenated().to_string())
     }
 }

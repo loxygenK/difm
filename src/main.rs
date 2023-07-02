@@ -1,9 +1,10 @@
 mod ssh;
 mod services;
-pub mod util;
-mod future;
+mod util;
 mod fs;
-pub mod config;
+mod config;
+mod task;
+mod remote;
 
 use services::run_task::run_task;
 
@@ -13,6 +14,5 @@ use crate::config::read_config;
 async fn main() {
     let config = read_config(Some("./examples/cross-compile.yml".into()));
 
-    run_task(&config).await;
-    return;
+    run_task(&config).await
 }
