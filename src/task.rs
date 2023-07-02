@@ -1,5 +1,5 @@
 use std::{
-    num::{NonZeroI32, NonZeroU8},
+    num::NonZeroU8,
     path::Path,
 };
 

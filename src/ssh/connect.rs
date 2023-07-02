@@ -15,7 +15,7 @@ pub(super) fn try_connection(host: &str) -> Option<TcpStream> {
             let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(30));
             match stream {
                 Ok(stream) => Some(stream),
-                Err(err) => None,
+                Err(_) => None,
             }
         })
 }
