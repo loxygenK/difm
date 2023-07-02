@@ -1,6 +1,6 @@
-use std::{path::PathBuf, fs::File, io::BufReader};
+use std::{fs::File, io::BufReader, path::PathBuf};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 pub fn read_config(path: Option<PathBuf>) -> ConfigContext {
     let path = path.unwrap_or("./difm.yaml".into());
@@ -9,72 +9,72 @@ pub fn read_config(path: Option<PathBuf>) -> ConfigContext {
 
     ConfigContext {
         config: serde_yaml::from_reader(reader).unwrap(),
-        config_file: path.to_owned(),
+        config_file: path,
     }
 }
 
 pub struct ConfigContext {
-  pub config_file: PathBuf,
-  pub config: Configuration,
+    pub config_file: PathBuf,
+    pub config: Configuration,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Configuration {
-  #[serde(alias = "task")]
-  TaskDefinition(TaskDefinition)
+    #[serde(alias = "task")]
+    TaskDefinition(TaskDefinition),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskDefinition {
-  #[serde(alias = "as")]
-  pub alias: Option<String>,
-  pub host: TaskHost,
-  pub code: TaskCodeDefinition,
-  pub run: Vec<TaskRun>,
-  pub artifact: Vec<TaskArtifact>
+    #[serde(alias = "as")]
+    pub alias: Option<String>,
+    pub host: TaskHost,
+    pub code: TaskCodeDefinition,
+    pub run: Vec<TaskRun>,
+    pub artifact: Vec<TaskArtifact>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskHost {
-  pub name: String,
-  pub base_dir: PathBuf,
+    pub name: String,
+    pub base_dir: PathBuf,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskCodeDefinition {
-  pub location: PathBuf,
-  pub dest: PathBuf,
-  pub ignore: String,
+    pub location: PathBuf,
+    pub dest: PathBuf,
+    pub ignore: String,
 
-  #[serde(alias = "use")]
-  pub protocol: TaskCodeProtocol,
+    #[serde(alias = "use")]
+    pub protocol: TaskCodeProtocol,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskCodeProtocol {
-  Ssh
+    Ssh,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRun {
-  pub name: String,
-  pub run: String,
+    pub name: String,
+    pub run: String,
 
-  #[serde(default)]
-  pub platform: TaskRunPlatform,
+    #[serde(default)]
+    pub platform: TaskRunPlatform,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskRunPlatform {
-  #[default]
-  Remote
+    #[default]
+    Remote,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskArtifact {
-  pub remote_path: PathBuf,
-  pub local_path: PathBuf
+    pub remote_path: PathBuf,
+    pub local_path: PathBuf,
 }

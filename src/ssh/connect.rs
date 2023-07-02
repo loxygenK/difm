@@ -1,6 +1,9 @@
-use std::{net::{TcpStream, ToSocketAddrs}, time::Duration};
+use std::{
+    net::{TcpStream, ToSocketAddrs},
+    time::Duration,
+};
 
-use ssh2::{Session, MethodType};
+use ssh2::{MethodType, Session};
 use ssh2_config::HostParams;
 
 use crate::{check, util::read_from_stdin};
@@ -11,23 +14,20 @@ pub(super) fn try_connection(host: &str) -> Option<TcpStream> {
         .find_map(|addr| {
             let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(30));
             match stream {
-                Ok(stream) => {
-                    Some(stream)
-                },
-                Err(err) => {
-                    None
-                }
+                Ok(stream) => Some(stream),
+                Err(err) => None,
             }
         })
 }
 
 pub(super) fn authenticate(session: &mut Session, params: &HostParams) {
-    let user = params.user.clone().unwrap_or_else(|| { 
-        read_from_stdin(false, "Username :")
-    });
-    
+    let user = params
+        .user
+        .clone()
+        .unwrap_or_else(|| read_from_stdin(false, "Username :"));
+
     let password = read_from_stdin(true, &format!("[{}] Password: ", user));
-    
+
     if let Err(err) = session.userauth_password(&user, &password) {
         panic!("Authentication failed: {}", err);
     }
@@ -42,19 +42,14 @@ pub(super) fn configure_session(session: &mut Session, params: &HostParams) {
         let interval = params.server_alive_interval.unwrap().as_secs() as u32;
         session.set_keepalive(true, interval);
     }
-    
+
     macro_rules! report_if_fail {
-        ($op: expr, $err: expr) => {
-            {
-                let operation = { $op };
-                check!(
-                    operation.is_ok(),
-                    "{}: {}", $err, operation.unwrap_err()
-                );
-            }
-        };
+        ($op: expr, $err: expr) => {{
+            let operation = { $op };
+            check!(operation.is_ok(), "{}: {}", $err, operation.unwrap_err());
+        }};
     }
-    
+
     // algos
     if let Some(algos) = params.kex_algorithms.as_deref() {
         report_if_fail!(

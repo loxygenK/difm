@@ -1,10 +1,10 @@
-mod ssh;
-mod services;
-mod util;
-mod fs;
 mod config;
-mod task;
+mod fs;
 mod remote;
+mod services;
+mod ssh;
+mod task;
+mod util;
 
 use services::run_task::run_task;
 
