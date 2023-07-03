@@ -3,8 +3,8 @@ type: task
 as: xc
 
 host:
-  name: DifmRemote
-  base_dir: /home/flisan/synced/repo
+  name: DifmLocal
+  base_dir: /Users/flisan/workspaces/difm
 
 code:
   use: ssh
@@ -25,10 +25,16 @@ run:
   # - name: Check contents
   #   run: ls -al
 
-  - name: Install Rust
-    run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s - -y
+  # - name: Install Rust
+  #   run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s - -y
 
-  - name: Cross compile
+  # - name: Install toolchain for Apple
+  #   run: rustup target add aarch64-apple-darwin
+
+  # - name: Cross compile
+  #   run: cargo build --target=aarch64-apple-darwin
+
+  - name: compile
     run: cargo build
 
 artifact:

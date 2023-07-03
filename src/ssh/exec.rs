@@ -1,12 +1,13 @@
 use std::{io::Read, sync::Arc, time::Duration};
 
-use ssh2::Channel;
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
+use super::SSHSession;
+
 pub struct ExecChannel {
     end_notify: Arc<Notify>,
-    complete_info: Arc<RwLock<Option<ExecChannelCompleteInfo>>>
+    complete_info: Arc<RwLock<Option<ExecChannelCompleteInfo>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -17,14 +18,13 @@ pub struct ExecChannelCompleteInfo {
 }
 
 impl ExecChannel {
-    pub fn new(mut channel: Channel, line: &str) -> Self {
+    pub async fn new(session: &SSHSession, line: &str) -> Self {
         let id = Uuid::new_v4();
         let tag = Self::tag(&id);
+        let mut channel = session.create_exec_channel().await;
 
         // TODO: Sanitize `line`
-        channel
-            .exec(&format!("sh -c '{line}'; echo \"{tag}\""))
-            .unwrap();
+        channel.exec(&format!("sh -c '{line}'; echo \"{tag}\"")).unwrap();
 
         let complete_info = Arc::new(RwLock::new(None));
         let end_notify = Arc::new(Notify::new());
@@ -49,7 +49,7 @@ impl ExecChannel {
                     *(complete_info_for_thread.write().await) = Some(ExecChannelCompleteInfo {
                         stdout,
                         stderr,
-                        exit_code
+                        exit_code,
                     });
                     break;
                 }
@@ -61,6 +61,10 @@ impl ExecChannel {
         });
 
         new_exec
+    }
+
+    pub async fn execute(session: &SSHSession, line: &str) -> ExecChannelCompleteInfo {
+        Self::new(session, line).await.wait_done().await
     }
 
     pub async fn wait_done(&self) -> ExecChannelCompleteInfo {

@@ -1,6 +1,6 @@
 use std::{num::NonZeroU8, path::Path};
 
-use crate::{config::TaskRun, progress::ProgressView, ssh::SSHSession, util::indent_str};
+use crate::{config::TaskRun, progress::ProgressView, ssh::{SSHSession, exec::ExecChannel}, util::indent_str};
 
 pub struct TaskRunner<'s> {
     pub session: &'s SSHSession,
@@ -16,12 +16,11 @@ impl<'s> TaskRunner<'s> {
         ProgressView::with(
             format!("Running task: {}", run.name),
             |mut progress| async move {
-                let runner = self
-                    .session
-                    .create_exec_channel(&format!("cd {} && {}", pwd.to_str().unwrap(), run.run))
+                let exit_info = ExecChannel::execute(
+                    self.session,
+                    &format!("cd {} && {}", pwd.to_str().unwrap(), run.run)
+                )
                     .await;
-
-                let exit_info = runner.wait_done().await;
 
                 match exit_info.exit_code {
                     0 => progress.success(Some("done")),
@@ -49,6 +48,7 @@ impl<'s> TaskRunner<'s> {
         runs: &'a [TaskRun],
     ) -> Result<(), (&'a TaskRun, NonZeroU8)> {
         for run in runs {
+            println!();
             self.perform(pwd, run).await.map_err(|exit| (run, exit))?
         }
 

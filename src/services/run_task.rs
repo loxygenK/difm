@@ -1,8 +1,7 @@
-use std::path::{Path, PathBuf};
-
 use crate::config::{ConfigContext, Configuration};
-use crate::fs::traverse_dir;
+use crate::fs::FileTransferList;
 use crate::remote::RemoteHost;
+use crate::ssh::transfer::send_directory;
 use crate::task::TaskRunner;
 
 pub async fn run_task(config_ctx: &ConfigContext) {
@@ -10,17 +9,19 @@ pub async fn run_task(config_ctx: &ConfigContext) {
 
     let session = RemoteHost::new(&task.host.name).open();
 
-    let dirs = traverse_dir(Path::new("./"), &task.code.ignore, &config_ctx.config_file);
+    let dirs = FileTransferList::new(
+        &task.code.location,
+        &task.host.base_dir.join(&task.code.dest),
+        &task.code.ignore,
+        &config_ctx.config_file,
+    );
 
-    let location = PathBuf::from(&task.host.base_dir.join(&task.code.location));
-
-    session
-        .send_directory(dirs.as_slice(), &location)
+    send_directory(&session, dirs)
         .await
         .unwrap();
 
     TaskRunner::new(&session)
-        .perform_task_set(&location, &task.run)
+        .perform_task_set(&task.host.base_dir, &task.run)
         .await
         .unwrap();
 }
