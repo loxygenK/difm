@@ -20,3 +20,5 @@ serde = { version = "1.0.164", features = ["derive"] }
 serde_yaml = "0.9.22"
 structstruck = "0.4.1"
 uuid = { version = "1.4.0", features = ["v7", "v4"] }
+sha256 = "1.1.4"
+regex = "1.8.4"

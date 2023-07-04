@@ -1,19 +1,16 @@
 use std::{
     io::Write,
+    net::{TcpStream, ToSocketAddrs},
     path::Path,
     sync::Arc,
-    time::Duration, net::{ToSocketAddrs, TcpStream},
+    time::Duration,
 };
 
-use ssh2::{Session, MethodType, Channel};
+use ssh2::{Channel, MethodType, Session};
 use ssh2_config::HostParams;
 use tokio::sync::Mutex;
 
-use crate::{
-    check,
-    progress::ProgressView,
-     util::read_from_stdin,
-};
+use crate::{check, progress::ProgressView, util::read_from_stdin};
 
 pub mod exec;
 pub mod transfer;
@@ -70,7 +67,11 @@ impl SSHSession {
         Self(Arc::new(Mutex::new(session)))
     }
 
-    pub(self) async fn create_exec_channel(&self,) -> Channel {
+    pub fn shared_clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+
+    pub(self) async fn create_exec_channel(&self) -> Channel {
         self.0.clone().lock().await.channel_session().unwrap()
     }
 

@@ -1,10 +1,8 @@
+mod adapter;
 mod config;
-mod fs;
-pub mod progress;
+mod progress;
 mod remote;
 mod services;
-mod ssh;
-mod task;
 mod util;
 
 use services::run_task::run_task;

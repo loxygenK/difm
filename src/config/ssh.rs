@@ -2,14 +2,14 @@ use std::{fs::File, io::BufReader};
 
 use ssh2_config::{HostParams, ParseRule};
 
-use crate::ssh::SSHSession;
+use crate::adapter::ssh::SSHSession;
 
-pub struct RemoteHost {
+pub struct SSHConfig {
     hostname: String,
     config: HostParams,
 }
 
-impl RemoteHost {
+impl SSHConfig {
     pub fn new(hostname: &str) -> Self {
         let file = File::open("/Users/flisan/.ssh/config").unwrap();
         let mut reader = BufReader::new(file);

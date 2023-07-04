@@ -1,6 +1,11 @@
 use std::{num::NonZeroU8, path::Path};
 
-use crate::{config::TaskRun, progress::ProgressView, ssh::{SSHSession, exec::ExecChannel}, util::indent_str};
+use crate::{
+    adapter::ssh::{exec::ExecChannel, SSHSession},
+    config::TaskRun,
+    progress::ProgressView,
+    util::indent_str,
+};
 
 pub struct TaskRunner<'s> {
     pub session: &'s SSHSession,
@@ -18,9 +23,9 @@ impl<'s> TaskRunner<'s> {
             |mut progress| async move {
                 let exit_info = ExecChannel::execute(
                     self.session,
-                    &format!("cd {} && {}", pwd.to_str().unwrap(), run.run)
+                    &format!("cd {} && {}", pwd.to_str().unwrap(), run.run),
                 )
-                    .await;
+                .await;
 
                 match exit_info.exit_code {
                     0 => progress.success(Some("done")),

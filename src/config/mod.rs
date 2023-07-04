@@ -2,6 +2,8 @@ use std::{fs::File, io::BufReader, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+pub mod ssh;
+
 pub fn read_config(path: Option<PathBuf>) -> ConfigContext {
     let path = path.unwrap_or("./difm.yaml".into());
     let file = File::open(&path).unwrap();

@@ -1,9 +1,13 @@
-use std::{io::Read, sync::Arc, time::Duration};
+use std::{cell::OnceCell, io::Read, process::exit, sync::Arc, time::Duration};
 
+use regex::Regex;
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
 use super::SSHSession;
+
+pub const TAG_REGEX_PATTERN: &str = r"\[\[ END-OF-TASK (.{36}) (\d) ]]";
+pub const TAG_REGEX: OnceCell<Regex> = OnceCell::new();
 
 pub struct ExecChannel {
     end_notify: Arc<Notify>,
@@ -24,7 +28,9 @@ impl ExecChannel {
         let mut channel = session.create_exec_channel().await;
 
         // TODO: Sanitize `line`
-        channel.exec(&format!("sh -c '{line}'; echo \"{tag}\"")).unwrap();
+        channel
+            .exec(&format!("sh -c '{line}'; echo \"{tag}\""))
+            .unwrap();
 
         let complete_info = Arc::new(RwLock::new(None));
         let end_notify = Arc::new(Notify::new());
@@ -47,7 +53,7 @@ impl ExecChannel {
 
                 if let Some(exit_code) = Self::extract_tag(&id, &stdout) {
                     *(complete_info_for_thread.write().await) = Some(ExecChannelCompleteInfo {
-                        stdout,
+                        stdout: Self::remove_tag(&stdout),
                         stderr,
                         exit_code,
                     });
@@ -79,24 +85,28 @@ impl ExecChannel {
     }
 
     fn extract_tag(task_id: &Uuid, new_output: &str) -> Option<u8> {
-        let output: Vec<_> = new_output
-            .split(' ')
-            .skip_while(|segment| *segment != "[[")
-            .take(5)
-            .collect();
+        let binding = TAG_REGEX;
+        let regex = binding.get_or_init(|| Regex::new(TAG_REGEX_PATTERN).unwrap());
+        let capture = regex.captures(new_output)?;
 
-        let ["[[", "END-OF-TASK", id, exit_code, "]]"] = output.as_slice() else {
-            return None;
-        };
-
-        if *id != task_id.hyphenated().to_string().as_str() {
+        if !capture
+            .get(1)
+            .is_some_and(|matched| matched.as_str() == task_id.hyphenated().to_string())
+        {
             return None;
         }
 
-        let Ok(exit_code) = exit_code.parse::<u8>() else {
+        let Some(exit_code) = capture.get(2).and_then(|exit_code| exit_code.as_str().parse::<u8>().ok()) else {
+            println!("Exit code parse fail");
             return None;
         };
 
         Some(exit_code)
+    }
+
+    fn remove_tag(new_output: &str) -> String {
+        let binding = TAG_REGEX;
+        let regex = binding.get_or_init(|| Regex::new(TAG_REGEX_PATTERN).unwrap());
+        regex.replace(new_output, "").to_string()
     }
 }
